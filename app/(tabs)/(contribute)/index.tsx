@@ -32,6 +32,7 @@ export default function ContributeScreen() {
   const [state, setState] = useState<VerificationState>("idle");
   const [, setVideoUri] = useState<string | null>(null);
   const [scanProgress] = useState(new Animated.Value(0));
+  const [uploadCount, setUploadCount] = useState(0);
 
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -72,23 +73,32 @@ export default function ContributeScreen() {
   const startVerification = () => {
     setState("scanning");
     scanProgress.setValue(0);
-
+    setUploadCount((count) => count + 1);
     Animated.timing(scanProgress, {
       toValue: 100,
       duration: 3000,
       useNativeDriver: false,
     }).start(() => {
-      const results: ("failed" | "duplicate" | "success")[] = [
-        "failed",
-        "duplicate",
-        "success",
-      ];
-      const randomResult = results[Math.floor(Math.random() * results.length)];
+      let result: VerificationState;
 
-      setTimeout(() => {
-        setState(randomResult);
-      }, 500);
-    });
+      // Sử dụng modulo để tạo chu trình: 0 -> success, 1 -> duplicate, 2 -> failed
+      switch (uploadCount % 3) {
+        case 0:
+          result = "success";
+          break;
+        case 1:
+          result = "duplicate";
+          break;
+        case 2:
+          result = "failed";
+          break;
+        default:
+          result = "idle";
+    }
+    setTimeout(() => {
+      setState(result);
+    }, 500);
+  });
   };
 
   const reset = () => {
@@ -105,7 +115,7 @@ export default function ContributeScreen() {
   }> = [
     { type: "quiz", label: "Quiz", icon: BookOpen, color: "#3B82F6" },
     { type: "club", label: "Club Activity", icon: Users, color: "#8B5CF6" },
-    { type: "project", label: "Project", icon: Lightbulb, color: "#F59E0B" },
+{ type: "project", label: "Project", icon: Lightbulb, color: "#F59E0B" },
     { type: "volunteer", label: "Volunteer", icon: Heart, color: "#EF4444" },
     { type: "research", label: "Research", icon: GraduationCap, color: "#10B981" },
     { type: "workshop", label: "Workshop", icon: GraduationCap, color: "#06B6D4" },
@@ -176,7 +186,7 @@ export default function ContributeScreen() {
                       • Clear face visibility{"\n"}• 10-60 seconds duration{"\n"}•
                       Shows actual activity
                     </Text>
-                  </View>
+</View>
                 </View>
               </View>
 
@@ -258,7 +268,7 @@ export default function ContributeScreen() {
           )}
 
           {state === "failed" && (
-            <View style={styles.verificationSection}>
+<View style={styles.verificationSection}>
               <View style={[styles.resultIcon, styles.failedIcon]}>
                 <XCircle size={64} color="#EF4444" strokeWidth={2} />
               </View>
@@ -331,7 +341,7 @@ export default function ContributeScreen() {
                   colors={["#10B981", "#059669"]}
                   style={styles.rewardGradient}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+end={{ x: 1, y: 0 }}
                 >
                   <Text style={styles.rewardLabel}>Tokens Earned</Text>
                   <Text style={styles.rewardAmount}>+75 LEARN</Text>
@@ -459,7 +469,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#3B82F6",
     paddingVertical: 14,
-    paddingHorizontal: 24,
+paddingHorizontal: 24,
     borderRadius: 14,
     gap: 8,
   },
@@ -618,7 +628,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#94A3B8",
     marginBottom: 32,
-    textAlign: "center",
+textAlign: "center",
   },
   resultDetails: {
     width: "100%",
