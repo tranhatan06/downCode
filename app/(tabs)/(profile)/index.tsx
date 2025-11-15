@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   User,
   Trophy,
@@ -20,10 +21,50 @@ import {
   Copy,
   Share2,
 } from "lucide-react-native";
-import type { Badge, UserStats } from "../../../types";
+import type { Achievement } from "../../../types";
+import DIDModal from "../../../components/did-modal";
+
+const ACHIEVEMENTS_STORAGE_KEY = "@achievements";
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  rarity: "common" | "rare" | "epic" | "legendary";
+}
+
+interface UserStats {
+  totalTokens: number;
+  contributionScore: number;
+  governanceScore: number;
+  learnScore: number;
+  projectIndex: number;
+  leadershipIndex: number;
+  rank: number;
+}
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const [showDIDModal, setShowDIDModal] = useState(false);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+
+  useEffect(() => {
+    loadAchievements();
+  }, []);
+
+  const loadAchievements = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(ACHIEVEMENTS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        console.log("parsed", parsed);
+        setAchievements(parsed);
+      }
+    } catch (error) {
+      console.error("Error loading achievements:", error);
+    }
+  };
 
   const [userStats] = useState<UserStats>({
     totalTokens: 1250,
@@ -80,7 +121,13 @@ export default function ProfileScreen() {
     },
   ]);
 
-  const walletAddress = "0x7a8f...4e2d";
+  const walletAddress = "0x9fc12ac3132ea8"; // Full address for DID
+  const userName = "Guest User";
+  
+  // Tạo DID code dựa trên wallet address (trong thực tế sẽ lấy từ blockchain)
+  const didCode = `did:byteedu:${walletAddress}`;
+  console.log("didCode", didCode);
+  const contributionsCount = achievements.length;
 
   return (
     <View style={styles.container}>
@@ -185,7 +232,15 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Quick Actions</Text>
 
             <View style={styles.actionsList}>
-              <TouchableOpacity style={styles.actionCard} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  console.log("Share Profile pressed, setting showDIDModal to true");
+                  setShowDIDModal(true);
+                  console.log("showDIDModal state should be true now");
+                }}
+              >
                 <View style={styles.actionIconContainer}>
                   <Share2 size={20} color="#3B82F6" />
                 </View>
@@ -229,6 +284,18 @@ export default function ProfileScreen() {
           <View style={{ height: 20 }} />
         </ScrollView>
       </LinearGradient>
+
+      <DIDModal
+        visible={showDIDModal}
+        onClose={() => {
+          console.log("Closing DID modal");
+          setShowDIDModal(false);
+        }}
+        userName={userName}
+        didCode={didCode}
+        achievements={achievements}
+        contributionsCount={contributionsCount}
+      />
     </View>
   );
 }

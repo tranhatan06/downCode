@@ -75,7 +75,7 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.greeting}>Welcome back!</Text>
-              <Text style={styles.title}>EduDAO Nexus</Text>
+              <Text style={styles.title}>ByteEdu</Text>
             </View>
             <TouchableOpacity style={styles.notificationButton}>
               <View style={styles.notificationBadge} />

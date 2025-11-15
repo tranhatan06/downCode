@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Video,
   Camera,
@@ -21,18 +22,35 @@ import {
   Lightbulb,
   Heart,
   GraduationCap,
+  Trophy,
+  History,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import type { ContributionType } from "../../../types";
+import type { ContributionType, Achievement } from "../../../types";
+import VideoPreview from "../../../components/video-preview";
+import ContributionForm from "../../../components/contribution-form";
+import AchievementHistory from "../../../components/achievement-history";
 
-type VerificationState = "idle" | "scanning" | "failed" | "duplicate" | "success";
+type VerificationState = "idle" | "preview" | "form" | "scanning" | "failed" | "duplicate" | "success";
+type ViewMode = "contribute" | "history";
+
+const ACHIEVEMENTS_STORAGE_KEY = "@achievements";
 
 export default function ContributeScreen() {
   const insets = useSafeAreaInsets();
   const [state, setState] = useState<VerificationState>("idle");
-  const [, setVideoUri] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("contribute");
+  const [videoUri, setVideoUri] = useState<string | null>(null);
   const [scanProgress] = useState(new Animated.Value(0));
   const [uploadCount, setUploadCount] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<ContributionType | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+
+  useEffect(() => {
+    loadAchievements();
+  }, []);
 
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -48,7 +66,7 @@ export default function ContributeScreen() {
 
     if (!result.canceled && result.assets[0]) {
       setVideoUri(result.assets[0].uri);
-      startVerification();
+      setState("preview");
     }
   };
 
@@ -66,6 +84,43 @@ export default function ContributeScreen() {
 
     if (!result.canceled && result.assets[0]) {
       setVideoUri(result.assets[0].uri);
+      setState("preview");
+    }
+  };
+
+  const handleVideoConfirm = () => {
+    setState("form");
+  };
+
+  const handleVideoRemove = () => {
+    setVideoUri(null);
+    setState("idle");
+  };
+
+  const loadAchievements = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(ACHIEVEMENTS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setAchievements(parsed);
+      }
+    } catch (error) {
+      console.error("Error loading achievements:", error);
+    }
+  };
+
+  const saveAchievement = async (achievement: Achievement) => {
+    try {
+      const updated = [achievement, ...achievements];
+      await AsyncStorage.setItem(ACHIEVEMENTS_STORAGE_KEY, JSON.stringify(updated));
+      setAchievements(updated);
+    } catch (error) {
+      console.error("Error saving achievement:", error);
+    }
+  };
+
+  const handleFormSubmit = () => {
+    if (selectedCategory && title.trim().length > 0) {
       startVerification();
     }
   };
@@ -97,6 +152,21 @@ export default function ContributeScreen() {
     }
     setTimeout(() => {
       setState(result);
+      
+      // Lưu achievement khi thành công
+      if (result === "success" && selectedCategory && title) {
+        const newAchievement: Achievement = {
+          id: Date.now().toString(),
+          category: selectedCategory,
+          title: title,
+          description: description,
+          tokensEarned: 75,
+          impactScore: 8.5,
+          date: new Date().toISOString(),
+          videoUri: videoUri || undefined,
+        };
+        saveAchievement(newAchievement);
+      }
     }, 500);
   });
   };
@@ -105,6 +175,9 @@ export default function ContributeScreen() {
     setState("idle");
     setVideoUri(null);
     scanProgress.setValue(0);
+    setSelectedCategory(null);
+    setTitle("");
+    setDescription("");
   };
 
   const categories: Array<{
@@ -124,19 +197,81 @@ export default function ContributeScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient colors={["#0F172A", "#1E293B"]} style={styles.gradient}>
+        <View style={[styles.tabBar, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              viewMode === "contribute" && styles.tabButtonActive,
+            ]}
+            onPress={() => {
+              setViewMode("contribute");
+              if (state !== "idle") {
+                reset();
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Video
+              size={18}
+              color={viewMode === "contribute" ? "#3B82F6" : "#94A3B8"}
+            />
+            <Text
+              style={[
+                styles.tabButtonText,
+                viewMode === "contribute" && styles.tabButtonTextActive,
+              ]}
+            >
+              Contribute
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              viewMode === "history" && styles.tabButtonActive,
+            ]}
+            onPress={() => setViewMode("history")}
+            activeOpacity={0.7}
+          >
+            <Trophy
+              size={18}
+              color={viewMode === "history" ? "#3B82F6" : "#94A3B8"}
+            />
+            <Text
+              style={[
+                styles.tabButtonText,
+                viewMode === "history" && styles.tabButtonTextActive,
+              ]}
+            >
+              Achievements
+            </Text>
+            {achievements.length > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{achievements.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: insets.top }}
+          contentContainerStyle={{ paddingTop: 16 }}
         >
-          {state === "idle" && (
+          {viewMode === "history" ? (
+            <View style={styles.historySection}>
+              <AchievementHistory achievements={achievements} />
+            </View>
+          ) : (
             <>
-              <View style={styles.header}>
-                <Text style={styles.title}>Contribute</Text>
-                <Text style={styles.subtitle}>
-                  Submit proof of your activities and earn LEARN tokens
-                </Text>
-              </View>
+              {state === "idle" && (
+                <>
+                  <View style={styles.header}>
+                    <Text style={styles.title}>Contribute</Text>
+                    <Text style={styles.subtitle}>
+                      Submit proof of your activities and earn LEARN tokens
+                    </Text>
+                  </View>
 
               <View style={styles.videoSection}>
                 <View style={styles.sectionHeader}>
@@ -189,7 +324,7 @@ export default function ContributeScreen() {
 </View>
                 </View>
               </View>
-
+{/* 
               <View style={styles.categoriesSection}>
                 <View style={styles.sectionHeader}>
                   <Lightbulb size={20} color="#10B981" />
@@ -220,8 +355,50 @@ export default function ContributeScreen() {
                     );
                   })}
                 </View>
-              </View>
+              </View> */}
             </>
+          )}
+
+          {state === "preview" && videoUri && (
+            <View style={styles.previewSection}>
+              <View style={styles.header}>
+                <Text style={styles.title}>Preview Video</Text>
+                <Text style={styles.subtitle}>
+                  Review your video before submitting
+                </Text>
+              </View>
+
+              <View style={styles.videoSection}>
+                <VideoPreview
+                  uri={videoUri}
+                  onRemove={handleVideoRemove}
+                  onConfirm={handleVideoConfirm}
+                />
+              </View>
+            </View>
+          )}
+
+          {state === "form" && videoUri && (
+            <View style={styles.formSection}>
+              <View style={styles.header}>
+                <Text style={styles.title}>Contribution Details</Text>
+                <Text style={styles.subtitle}>
+                  Provide information about your activity
+                </Text>
+              </View>
+
+              <View style={styles.videoSection}>
+                <ContributionForm
+                  selectedCategory={selectedCategory}
+                  onCategorySelect={setSelectedCategory}
+                  title={title}
+                  onTitleChange={setTitle}
+                  description={description}
+                  onDescriptionChange={setDescription}
+                  onSubmit={handleFormSubmit}
+                />
+              </View>
+            </View>
           )}
 
           {state === "scanning" && (
@@ -369,6 +546,8 @@ end={{ x: 1, y: 0 }}
               </TouchableOpacity>
             </View>
           )}
+            </>
+          )}
 
           <View style={{ height: 20 }} />
         </ScrollView>
@@ -416,6 +595,63 @@ const styles = StyleSheet.create({
   videoSection: {
     paddingHorizontal: 20,
     marginBottom: 32,
+  },
+  previewSection: {
+    paddingHorizontal: 20,
+  },
+  formSection: {
+    paddingHorizontal: 20,
+  },
+  tabBar: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+    backgroundColor: "#1E293B",
+    position: "relative",
+  },
+  tabButtonActive: {
+    backgroundColor: "#1E40AF20",
+  },
+  tabButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#94A3B8",
+  },
+  tabButtonTextActive: {
+    color: "#3B82F6",
+  },
+  badge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "#3B82F6",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  historySection: {
+    paddingHorizontal: 20,
   },
   sectionHeader: {
     flexDirection: "row",
